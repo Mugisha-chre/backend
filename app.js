@@ -66,7 +66,10 @@ pool.getConnection()
 // MIDDLEWARE
 // ============================================
 
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || "http://localhost:5173",
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(CONFIG.UPLOAD_DIR));
@@ -597,7 +600,7 @@ app.get('/api/news/:identifier', async (req, res) => {
       article.content = article.content.replace(
         /src="(?!http)([^"]+)"/g,
         (match, p1) => {
-          return `src="http://localhost:${CONFIG.PORT}/${p1.replace(/^\/?/, '')}"`;
+         return `src="${process.env.BASE_URL}/${p1.replace(/^\/?/, '')}"`;
         }
       );
     }
@@ -969,7 +972,7 @@ app.post('/api/upload', authenticateToken, upload.single('image'), (req, res) =>
 
     res.json({
       success: true,
-      url: `http://localhost:${CONFIG.PORT}${imageUrl}`
+      url: `${process.env.BASE_URL}${imageUrl}`
     });
 
   } catch (error) {
@@ -1012,7 +1015,7 @@ app.listen(CONFIG.PORT, () => {
 ║   🎓 COLLEGE DE BETHEL NEWS SYSTEM API       ║
 ║                                               ║
 ║   Server running on port ${CONFIG.PORT}               ║
-║   API URL: http://localhost:${CONFIG.PORT}/api      ║
+API URL: ${process.env.BASE_URL || `http://localhost:${CONFIG.PORT}`}/api      ║
 ║                                               ║
 ╚═══════════════════════════════════════════════╝
   `);
