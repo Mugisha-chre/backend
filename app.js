@@ -879,29 +879,40 @@ app.post('/api/categories', authenticateToken, async (req, res) => {
 
 app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
   try {
+
+    // ============================
+    // NEWS ANALYTICS (Replacement for news_analytics VIEW)
+    // ============================
     const [newsStats] = await pool.execute(`
       SELECT 
-        COUNT(*) as total_news,
-        SUM(CASE WHEN status = 'published' THEN 1 ELSE 0 END) as published_count,
-        SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft_count,
-        SUM(views) as total_views,
-        AVG(views) as avg_views
+        COUNT(*) AS total_news,
+        SUM(CASE WHEN status = 'published' THEN 1 ELSE 0 END) AS published,
+        SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) AS drafts,
+        COALESCE(SUM(views), 0) AS total_views,
+        COALESCE(AVG(views), 0) AS avg_views
       FROM news
     `);
 
-    const [categoryStats] = await pool.execute(`
+    // ============================
+    // CATEGORY ANALYTICS (Replacement for category_analytics VIEW)
+    // ============================
+    const [categoryAnalytics] = await pool.execute(`
       SELECT 
         c.id,
         c.name,
         c.slug,
-        COUNT(n.id) as news_count,
-        SUM(n.views) as total_views
+        COUNT(n.id) AS article_count,
+        COALESCE(SUM(n.views), 0) AS total_views,
+        COALESCE(AVG(n.views), 0) AS avg_views
       FROM categories c
       LEFT JOIN news n ON c.id = n.category_id
       GROUP BY c.id, c.name, c.slug
-      ORDER BY news_count DESC
+      ORDER BY article_count DESC
     `);
 
+    // ============================
+    // RECENT NEWS
+    // ============================
     const [recentNews] = await pool.execute(`
       SELECT id, title, status, views, created_at
       FROM news
@@ -909,6 +920,9 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
       LIMIT 5
     `);
 
+    // ============================
+    // MOST POPULAR NEWS
+    // ============================
     const [popularNews] = await pool.execute(`
       SELECT id, title, views, published_date
       FROM news
@@ -917,10 +931,13 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
       LIMIT 5
     `);
 
+    // ============================
+    // MONTHLY STATS
+    // ============================
     const [monthlyStats] = await pool.execute(`
       SELECT 
-        DATE_FORMAT(created_at, '%Y-%m') as month,
-        COUNT(*) as count
+        DATE_FORMAT(created_at, '%Y-%m') AS month,
+        COUNT(*) AS count
       FROM news
       WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
       GROUP BY DATE_FORMAT(created_at, '%Y-%m')
@@ -931,14 +948,15 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
       success: true,
       data: {
         overview: newsStats[0],
-        categories: categoryStats,
+        categories: categoryAnalytics,
         recentNews,
         popularNews,
         monthlyStats
       }
     });
+
   } catch (error) {
-    console.error('Get stats error:', error);
+    console.error('Dashboard stats error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch statistics',
@@ -1022,3 +1040,4 @@ API URL: ${process.env.BASE_URL || `http://localhost:${CONFIG.PORT}`}/api      â
 });
 
 module.exports = app;
+
